@@ -1,10 +1,10 @@
 flask
-numpy
-tensorflow
-scikit-learn
+numpy==1.23.5
 scipy
+scikit-learn
 imbalanced-learn
+wfdb
 matplotlib
 seaborn
-wfdb
+tensorflow-cpu==2.13.0
 gunicorn
