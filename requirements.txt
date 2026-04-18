@@ -1,0 +1,10 @@
+flask
+numpy
+tensorflow
+scikit-learn
+scipy
+imbalanced-learn
+matplotlib
+seaborn
+wfdb
+gunicorn

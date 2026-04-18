@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CardioLens — ECG Arrhythmia Analysis</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+</head>
+<body>
+
+  <!-- ── TOP NAV ─────────────────────────────────────────── -->
+  <nav class="topnav">
+    <div class="nav-brand">
+      <span class="brand-icon"><i class="fa-solid fa-heart-pulse"></i></span>
+      <span class="brand-name">CardioLens</span>
+      <span class="brand-tag">AI ECG Analysis</span>
+    </div>
+    <div class="nav-actions">
+      <button id="btn-dark-mode" class="icon-btn" title="Toggle dark mode">
+        <i class="fa-solid fa-moon"></i>
+      </button>
+      <button id="btn-download-report" class="pill-btn" disabled>
+        <i class="fa-solid fa-file-arrow-down"></i> Export Report
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── DISCLAIMER BANNER ──────────────────────────────── -->
+  <div class="disclaimer-banner">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <strong>Medical Disclaimer:</strong> This is an AI-based screening tool and not a medical diagnosis. Always consult a qualified cardiologist for clinical decisions.
+  </div>
+
+  <!-- ── MAIN LAYOUT ────────────────────────────────────── -->
+  <main class="app-layout">
+
+    <!-- ════ LEFT PANEL ════ -->
+    <aside class="left-panel">
+
+      <!-- Upload Card -->
+      <div class="card upload-card" id="upload-card">
+        <div class="card-header">
+          <i class="fa-solid fa-upload"></i>
+          <h3>Upload ECG File</h3>
+        </div>
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-icon"><i class="fa-regular fa-file-waveform"></i></div>
+          <p class="drop-title">Drag & drop CSV here</p>
+          <p class="drop-sub">MIT-BIH format · CSV</p>
+          <label class="browse-btn" for="file-input">
+            <i class="fa-solid fa-folder-open"></i> Browse File
+          </label>
+          <input type="file" id="file-input" accept=".csv" hidden />
+        </div>
+        <div class="file-info hidden" id="file-info">
+          <i class="fa-solid fa-file-csv file-info-icon"></i>
+          <div class="file-info-text">
+            <span id="file-name">—</span>
+            <span id="file-size" class="muted">—</span>
+          </div>
+          <button class="clear-btn" id="btn-clear"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <button class="analyze-btn" id="btn-analyze" disabled>
+          <span class="btn-label"><i class="fa-solid fa-brain"></i> Analyze ECG</span>
+          <span class="btn-loading hidden"><i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing…</span>
+        </button>
+      </div>
+
+      <!-- Summary Card -->
+      <div class="card summary-card hidden" id="summary-card">
+        <div class="card-header">
+          <i class="fa-solid fa-chart-pie"></i>
+          <h3>Summary</h3>
+        </div>
+
+        <div class="status-badge-wrap">
+          <div class="status-badge" id="status-badge">—</div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-item">
+            <span class="stat-val" id="stat-total">—</span>
+            <span class="stat-lbl">Total Beats</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="stat-confidence">—</span>
+            <span class="stat-lbl">Avg Confidence</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="stat-abnormal">—</span>
+            <span class="stat-lbl">Abnormal Beats</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-val" id="stat-duration">—</span>
+            <span class="stat-lbl">Signal Duration</span>
+          </div>
+        </div>
+
+        <!-- Distribution Legend -->
+        <div class="dist-legend" id="dist-legend"></div>
+
+        <!-- Pie Chart -->
+        <div class="chart-wrap">
+          <canvas id="pie-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Beat Legend -->
+      <div class="card legend-card">
+        <div class="card-header">
+          <i class="fa-solid fa-tags"></i>
+          <h3>Beat Classes</h3>
+        </div>
+        <ul class="legend-list">
+          <li><span class="dot dot-N"></span><strong>N</strong> — Normal Sinus</li>
+          <li><span class="dot dot-S"></span><strong>S</strong> — Supraventricular Ectopic</li>
+          <li><span class="dot dot-V"></span><strong>V</strong> — Ventricular Ectopic</li>
+          <li><span class="dot dot-F"></span><strong>F</strong> — Fusion Beat</li>
+          <li><span class="dot dot-Q"></span><strong>Q</strong> — Low Confidence / Unknown</li>
+        </ul>
+      </div>
+
+    </aside>
+
+    <!-- ════ RIGHT PANEL ════ -->
+    <section class="right-panel">
+
+      <!-- Welcome / Empty State -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-art">
+          <svg viewBox="0 0 400 160" xmlns="http://www.w3.org/2000/svg" class="hero-wave">
+            <polyline points="0,80 40,80 55,40 70,120 85,80 120,80 135,30 150,130 165,80 200,80 215,60 230,100 245,80 280,80 295,20 310,140 325,80 360,80 400,80"
+              fill="none" stroke="url(#waveGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="waveGrad" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
+                <stop offset="50%" stop-color="#10b981" stop-opacity="0.8"/>
+                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.3"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h2>Upload an ECG file to begin analysis</h2>
+        <p>Supports MIT-BIH format CSV files. The AI model will detect beats, classify arrhythmias, and visualize results.</p>
+      </div>
+
+      <!-- Analysis Results (hidden until loaded) -->
+      <div class="results hidden" id="results">
+
+        <!-- Full ECG Waveform -->
+        <div class="card waveform-card">
+          <div class="card-header">
+            <i class="fa-solid fa-wave-square"></i>
+            <h3>ECG Signal — Full View</h3>
+            <div class="card-actions">
+              <span class="chart-hint"><i class="fa-solid fa-circle-info"></i> Click a beat marker to inspect</span>
+            </div>
+          </div>
+          <div class="waveform-container">
+            <canvas id="ecg-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Beat Inspector -->
+        <div class="card beat-inspector-card" id="beat-inspector-card">
+          <div class="card-header">
+            <i class="fa-solid fa-magnifying-glass-chart"></i>
+            <h3>Beat Inspector</h3>
+            <div class="card-actions beat-nav">
+              <button class="nav-btn" id="btn-prev-beat"><i class="fa-solid fa-chevron-left"></i></button>
+              <span id="beat-nav-label">Beat — / —</span>
+              <button class="nav-btn" id="btn-next-beat"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+          </div>
+
+          <div class="inspector-body">
+            <!-- Beat waveform zoom -->
+            <div class="beat-waveform">
+              <canvas id="beat-chart"></canvas>
+            </div>
+
+            <!-- Beat details -->
+            <div class="beat-details" id="beat-details">
+              <div class="beat-class-display" id="beat-class-display">
+                <span class="class-badge" id="class-badge">—</span>
+                <div class="class-info">
+                  <p class="class-name" id="class-name">Select a beat</p>
+                  <p class="class-confidence" id="class-confidence"></p>
+                </div>
+              </div>
+
+              <div class="confidence-bar-wrap">
+                <div class="confidence-bar-bg">
+                  <div class="confidence-bar-fill" id="confidence-fill"></div>
+                </div>
+                <span class="confidence-pct" id="confidence-pct">—</span>
+              </div>
+
+              <div class="explanation-box" id="explanation-box">
+                <i class="fa-solid fa-circle-info"></i>
+                <p id="explanation-text">Click a beat on the waveform or use navigation buttons above to inspect.</p>
+              </div>
+
+              <!-- All-class probability bars -->
+              <div class="prob-bars" id="prob-bars"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Beat Table -->
+        <div class="card table-card">
+          <div class="card-header">
+            <i class="fa-solid fa-table-list"></i>
+            <h3>Beat-level Predictions</h3>
+            <div class="card-actions">
+              <div class="class-filter" id="class-filter">
+                <button class="filter-btn active" data-filter="ALL">All</button>
+                <button class="filter-btn" data-filter="N">N</button>
+                <button class="filter-btn" data-filter="S">S</button>
+                <button class="filter-btn" data-filter="V">V</button>
+                <button class="filter-btn" data-filter="F">F</button>
+                <button class="filter-btn" data-filter="Q">Q</button>
+              </div>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="beat-table" id="beat-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Sample</th>
+                  <th>Time (s)</th>
+                  <th>Class</th>
+                  <th>Confidence</th>
+                  <th>Status</th>
+                  <th>Inspect</th>
+                </tr>
+              </thead>
+              <tbody id="beat-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /results -->
+    </section>
+  </main>
+
+  <!-- ── TOAST CONTAINER ───────────────────────────────── -->
+  <div id="toast-container"></div>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
