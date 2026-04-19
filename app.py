@@ -200,8 +200,8 @@ def predict():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
-    file     = request.files["file"]
-    filepath = "temp_ecg.csv"
+    file = request.files["file"]
+    filepath = "/tmp/temp_ecg.csv"    # ← was "temp_ecg.csv", root is read-only on Render
     file.save(filepath)
 
     try:
@@ -229,16 +229,18 @@ def predict():
         return jsonify({
             "summary":     summary,
             "predictions": results,
-            "signal":      [float(x) for x in signal],
+            "signal":      [float(x) for x in signal[:7200]],  # ← limit size
             "peaks":       [int(p) for p in peaks[:30]],
             "beats":       [b.tolist() for b in beats[:30]]
         })
 
     except Exception as e:
         import traceback
+        tb = traceback.format_exc()
+        print("❌ PREDICT ERROR:", tb)
         return jsonify({
             "error":     str(e),
-            "traceback": traceback.format_exc()
+            "traceback": tb
         }), 500
 
     finally:
