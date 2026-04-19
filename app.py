@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, render_template
 import numpy as np
 import os
 import pickle
+import json
 from tensorflow import keras
 from scipy.signal import butter, filtfilt, find_peaks
 from collections import Counter
@@ -15,10 +16,28 @@ MODEL_PATH = "models"
 # ================================
 print("🔄 Loading model...")
 
-model = keras.models.load_model(
-    os.path.join(MODEL_PATH, "cnn_lstm_model.h5"),
-    compile=False
-)
+def build_model():
+    config_path  = os.path.join(MODEL_PATH, "model_config.json")
+    weights_path = os.path.join(MODEL_PATH, "ecg_weights.weights.h5")
+    h5_path      = os.path.join(MODEL_PATH, "cnn_lstm_model.h5")
+
+    # Option 1: config + weights (most compatible)
+    if os.path.exists(config_path) and os.path.exists(weights_path):
+        print("📦 Loading from config + weights...")
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        m = keras.Model.from_config(config)
+        m.load_weights(weights_path)
+        return m
+
+    # Option 2: fallback to .h5
+    if os.path.exists(h5_path):
+        print("📦 Loading from .h5...")
+        return keras.models.load_model(h5_path, compile=False)
+
+    raise FileNotFoundError("No model file found in models/ directory!")
+
+model = build_model()
 
 with open(os.path.join(MODEL_PATH, "scaler.pkl"), "rb") as f:
     scaler = pickle.load(f)
@@ -79,15 +98,14 @@ def predict_beat(beat):
 
     sorted_idx = np.argsort(probs)[::-1]
 
-    top_idx = sorted_idx[0]
+    top_idx    = sorted_idx[0]
     second_idx = sorted_idx[1]
 
-    top_label = CLASS_LABELS[top_idx]
-    top_conf = float(probs[top_idx])
-
+    top_label  = CLASS_LABELS[top_idx]
+    top_conf   = float(probs[top_idx])
     second_conf = float(probs[second_idx])
 
-    # 🔥 Confidence + margin check (VERY important)
+    # Confidence + margin check
     if top_conf < 0.65 or (top_conf - second_conf) < 0.15:
         return "Q", top_conf
 
@@ -121,17 +139,17 @@ def aggregate_predictions(results):
     else:
         status = "Normal Sinus Rhythm"
 
-    non_q = [r["confidence"] for r in results if r["prediction"] != "Q"]
+    non_q    = [r["confidence"] for r in results if r["prediction"] != "Q"]
     avg_conf = float(np.mean(non_q)) if non_q else 0.0
 
     return {
-    "total_beats": total,
-    "class_counts": dict(counts),
-    "status": status,
-    "avg_confidence": round(avg_conf, 3),
-    "signal_length": len(results),  # optional but useful for UI
-    "note": "Automated screening only. Confirm with a cardiologist.",
-}
+        "total_beats":    total,
+        "class_counts":   dict(counts),
+        "status":         status,
+        "avg_confidence": round(avg_conf, 3),
+        "signal_length":  total,
+        "note":           "Automated screening only. Confirm with a cardiologist.",
+    }
 
 
 # ================================
@@ -148,7 +166,7 @@ def predict():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
-    file = request.files["file"]
+    file     = request.files["file"]
     filepath = "temp_ecg.csv"
     file.save(filepath)
 
@@ -158,39 +176,34 @@ def predict():
         if len(signal) < 360:
             return jsonify({"error": "ECG signal too short"}), 400
 
-        # ✅ FIX: get beats + peaks
         beats, peaks = extract_beats(signal[:7200])
 
         if len(beats) == 0:
             return jsonify({"error": "No valid beats detected"}), 400
 
         results = []
-
-        # ✅ FIX: include sample_index + correct key names
         for i, beat in enumerate(beats[:30]):
             label, conf = predict_beat(beat)
-
             results.append({
-                "prediction": label,
-                "confidence": round(conf, 4),
+                "prediction":   label,
+                "confidence":   round(conf, 4),
                 "sample_index": int(peaks[i])
             })
 
         summary = aggregate_predictions(results)
 
-        # ✅ FIX: convert numpy → list
         return jsonify({
-            "summary": summary,
+            "summary":     summary,
             "predictions": results,
-            "signal": [float(x) for x in signal],
-            "peaks": [int(p) for p in peaks[:30]],
-            "beats": [b.tolist() for b in beats[:30]]
+            "signal":      [float(x) for x in signal],
+            "peaks":       [int(p) for p in peaks[:30]],
+            "beats":       [b.tolist() for b in beats[:30]]
         })
 
     except Exception as e:
         import traceback
         return jsonify({
-            "error": str(e),
+            "error":     str(e),
             "traceback": traceback.format_exc()
         }), 500
 
