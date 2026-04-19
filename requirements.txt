@@ -9,7 +9,7 @@ pandas
 scipy
 scikit-learn
 matplotlib
-tensorflow-cpu==2.13.0
-keras==2.13.0
+tensorflow-cpu==2.15.0
+keras==2.15.0
 h5py==3.8.0
 wfdb
