@@ -17,25 +17,56 @@ MODEL_PATH = "models"
 print("🔄 Loading model...")
 
 def build_model():
-    config_path  = os.path.join(MODEL_PATH, "model_config.json")
     weights_path = os.path.join(MODEL_PATH, "ecg_weights.weights.h5")
-    h5_path      = os.path.join(MODEL_PATH, "cnn_lstm_model.h5")
+    
+    from tensorflow.keras import layers, regularizers
+    
+    reg = regularizers.L2(1e-4)
+    
+    inputs = keras.Input(shape=(180, 1), name="ecg_input")
+    
+    # Block 1
+    x = layers.Conv1D(64, 5, padding='same', kernel_regularizer=reg, name='conv1d')(inputs)
+    x = layers.BatchNormalization(momentum=0.99, epsilon=0.001, name='batch_normalization')(x)
+    x = layers.Activation('relu', name='activation')(x)
+    x = layers.Conv1D(64, 5, padding='same', kernel_regularizer=reg, name='conv1d_1')(x)
+    x = layers.BatchNormalization(momentum=0.99, epsilon=0.001, name='batch_normalization_1')(x)
+    x = layers.Activation('relu', name='activation_1')(x)
+    x = layers.MaxPooling1D(2, name='max_pooling1d')(x)
+    x = layers.Dropout(0.2, name='dropout')(x)
 
-    # Option 1: config + weights (most compatible)
-    if os.path.exists(config_path) and os.path.exists(weights_path):
-        print("📦 Loading from config + weights...")
-        with open(config_path, "r") as f:
-            config = json.load(f)
-        m = keras.Model.from_config(config)
-        m.load_weights(weights_path)
-        return m
+    # Block 2
+    x = layers.Conv1D(128, 3, padding='same', kernel_regularizer=reg, name='conv1d_2')(x)
+    x = layers.BatchNormalization(momentum=0.99, epsilon=0.001, name='batch_normalization_2')(x)
+    x = layers.Activation('relu', name='activation_2')(x)
+    x = layers.Conv1D(128, 3, padding='same', kernel_regularizer=reg, name='conv1d_3')(x)
+    x = layers.BatchNormalization(momentum=0.99, epsilon=0.001, name='batch_normalization_3')(x)
+    x = layers.Activation('relu', name='activation_3')(x)
+    x = layers.MaxPooling1D(2, name='max_pooling1d_1')(x)
+    x = layers.Dropout(0.2, name='dropout_1')(x)
 
-    # Option 2: fallback to .h5
-    if os.path.exists(h5_path):
-        print("📦 Loading from .h5...")
-        return keras.models.load_model(h5_path, compile=False)
+    # BiLSTM Block
+    x = layers.Bidirectional(
+        layers.LSTM(128, return_sequences=True, kernel_regularizer=reg),
+        name='bidirectional'
+    )(x)
+    x = layers.Dropout(0.4, name='dropout_2')(x)
+    x = layers.Bidirectional(
+        layers.LSTM(64, return_sequences=False, kernel_regularizer=reg),
+        name='bidirectional_1'
+    )(x)
+    x = layers.Dropout(0.4, name='dropout_3')(x)
 
-    raise FileNotFoundError("No model file found in models/ directory!")
+    # Dense Block
+    x = layers.Dense(128, activation='relu', kernel_regularizer=reg, name='dense')(x)
+    x = layers.Dropout(0.4, name='dropout_4')(x)
+    x = layers.Dense(64, activation='relu', name='dense_1')(x)
+    outputs = layers.Dense(4, activation='softmax', name='output')(x)
+
+    model = keras.Model(inputs, outputs)
+    model.load_weights(weights_path)
+    print("✅ Model built from code + weights loaded")
+    return model
 
 model = build_model()
 
