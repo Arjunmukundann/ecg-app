@@ -203,6 +203,10 @@ def health():
         "classes": CLASS_LABELS
     })
 
+# Replace predict_beat function with this batch version
+# Instead of calling model.predict() 30 times (very slow/heavy),
+# run ONE batch prediction
+
 @app.route("/predict", methods=["POST"])
 def predict():
     if "file" not in request.files:
@@ -213,47 +217,78 @@ def predict():
     file.save(filepath)
 
     try:
-        print("📂 File saved, loading signal...")
-        signal = np.loadtxt(filepath, delimiter=',', skiprows=1, usecols=(1))
-        print(f"📊 Signal loaded: {len(signal)} samples")
+        print("📂 Loading signal...")
+
+        # Try column 1 first, fall back to column 0
+        try:
+            signal = np.loadtxt(filepath, delimiter=',', skiprows=1, usecols=(1))
+        except Exception:
+            signal = np.loadtxt(filepath, delimiter=',', skiprows=1, usecols=(0))
+
+        print(f"📊 Signal: {len(signal)} samples")
 
         if len(signal) < 360:
             return jsonify({"error": "ECG signal too short"}), 400
 
-        print("🔍 Extracting beats...")
         beats, peaks = extract_beats(signal[:7200])
-        print(f"💓 Found {len(beats)} beats")
+        print(f"💓 Beats found: {len(beats)}")
 
         if len(beats) == 0:
             return jsonify({"error": "No valid beats detected"}), 400
 
-        print("🧠 Running predictions...")
+        beats_to_use = beats[:30]
+        peaks_to_use = peaks[:30]
+
+        # ── BATCH predict (1 model call instead of 30) ──────
+        import gc
+        beat_array = np.array(beats_to_use)                      # (N, 180)
+        beat_scaled = scaler.transform(beat_array)                # (N, 180)
+        X = beat_scaled.reshape(len(beat_scaled), 180, 1)        # (N, 180, 1)
+
+        print("🧠 Running batch prediction...")
+        all_probs = model.predict(X, verbose=0, batch_size=8)    # (N, 4)
+        print("✅ Prediction done")
+        gc.collect()
+
         results = []
-        for i, beat in enumerate(beats[:30]):
-            label, conf = predict_beat(beat)
+        for i, probs in enumerate(all_probs):
+            sorted_idx   = np.argsort(probs)[::-1]
+            top_idx      = sorted_idx[0]
+            second_idx   = sorted_idx[1]
+            top_conf     = float(probs[top_idx])
+            second_conf  = float(probs[second_idx])
+            top_label    = CLASS_LABELS[top_idx]
+
+            if top_conf < 0.65 or (top_conf - second_conf) < 0.15:
+                label = "Q"
+            else:
+                label = top_label
+
             results.append({
-                "prediction":   label,
-                "confidence":   round(conf, 4),
-                "sample_index": int(peaks[i])
+                "prediction":    label,
+                "confidence":    round(top_conf, 4),
+                "sample_index":  int(peaks_to_use[i]),
+                "probabilities": {
+                    CLASS_LABELS[j]: round(float(probs[j]), 4)
+                    for j in range(len(CLASS_LABELS))
+                }
             })
-        print(f"✅ Predictions done: {len(results)} beats classified")
 
         summary = aggregate_predictions(results)
+        print("📤 Sending response")
 
-        response_data = {
+        return jsonify({
             "summary":     summary,
             "predictions": results,
             "signal":      [float(x) for x in signal[:7200]],
-            "peaks":       [int(p) for p in peaks[:30]],
-            "beats":       [b.tolist() for b in beats[:30]]
-        }
-        print("📤 Sending response...")
-        return jsonify(response_data)
+            "peaks":       [int(p) for p in peaks_to_use],
+            "beats":       [b.tolist() for b in beats_to_use]
+        })
 
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        print("❌ PREDICT ERROR:\n", tb)
+        print("❌ ERROR:\n", tb)
         return jsonify({"error": str(e), "traceback": tb}), 500
 
     finally:
