@@ -17,14 +17,17 @@ MODEL_PATH = "models"
 print("🔄 Loading model...")
 
 def build_model():
-    weights_path = os.path.join(MODEL_PATH, "ecg_weights.weights.h5")
-    
     from tensorflow.keras import layers, regularizers
-    
+
+    weights_path = os.path.join(MODEL_PATH, "ecg_weights.weights.h5")
+
+    if not os.path.exists(weights_path):
+        raise FileNotFoundError(f"Weights file not found at: {weights_path}")
+
     reg = regularizers.L2(1e-4)
-    
+
     inputs = keras.Input(shape=(180, 1), name="ecg_input")
-    
+
     # Block 1
     x = layers.Conv1D(64, 5, padding='same', kernel_regularizer=reg, name='conv1d')(inputs)
     x = layers.BatchNormalization(momentum=0.99, epsilon=0.001, name='batch_normalization')(x)
@@ -63,10 +66,10 @@ def build_model():
     x = layers.Dense(64, activation='relu', name='dense_1')(x)
     outputs = layers.Dense(4, activation='softmax', name='output')(x)
 
-    model = keras.Model(inputs, outputs)
-    model.load_weights(weights_path)
-    print("✅ Model built from code + weights loaded")
-    return model
+    m = keras.Model(inputs, outputs)
+    m.load_weights(weights_path)
+    print("✅ Model built from code + weights loaded successfully")
+    return m
 
 model = build_model()
 
