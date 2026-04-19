@@ -195,26 +195,39 @@ def home():
     return render_template("index.html")
 
 
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "ok",
+        "model_loaded": model is not None,
+        "classes": CLASS_LABELS
+    })
+
 @app.route("/predict", methods=["POST"])
 def predict():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files["file"]
-    filepath = "/tmp/temp_ecg.csv"    # ← was "temp_ecg.csv", root is read-only on Render
+    filepath = "/tmp/temp_ecg.csv"
     file.save(filepath)
 
     try:
+        print("📂 File saved, loading signal...")
         signal = np.loadtxt(filepath, delimiter=',', skiprows=1, usecols=(1))
+        print(f"📊 Signal loaded: {len(signal)} samples")
 
         if len(signal) < 360:
             return jsonify({"error": "ECG signal too short"}), 400
 
+        print("🔍 Extracting beats...")
         beats, peaks = extract_beats(signal[:7200])
+        print(f"💓 Found {len(beats)} beats")
 
         if len(beats) == 0:
             return jsonify({"error": "No valid beats detected"}), 400
 
+        print("🧠 Running predictions...")
         results = []
         for i, beat in enumerate(beats[:30]):
             label, conf = predict_beat(beat)
@@ -223,25 +236,25 @@ def predict():
                 "confidence":   round(conf, 4),
                 "sample_index": int(peaks[i])
             })
+        print(f"✅ Predictions done: {len(results)} beats classified")
 
         summary = aggregate_predictions(results)
 
-        return jsonify({
+        response_data = {
             "summary":     summary,
             "predictions": results,
-            "signal":      [float(x) for x in signal[:7200]],  # ← limit size
+            "signal":      [float(x) for x in signal[:7200]],
             "peaks":       [int(p) for p in peaks[:30]],
             "beats":       [b.tolist() for b in beats[:30]]
-        })
+        }
+        print("📤 Sending response...")
+        return jsonify(response_data)
 
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        print("❌ PREDICT ERROR:", tb)
-        return jsonify({
-            "error":     str(e),
-            "traceback": tb
-        }), 500
+        print("❌ PREDICT ERROR:\n", tb)
+        return jsonify({"error": str(e), "traceback": tb}), 500
 
     finally:
         if os.path.exists(filepath):
@@ -251,6 +264,7 @@ def predict():
 @app.route("/debug/classes", methods=["GET"])
 def debug_classes():
     return jsonify({"label_encoder_classes": CLASS_LABELS})
+
 
 
 # ================================
