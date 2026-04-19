@@ -16,7 +16,7 @@ MODEL_PATH = "models"
 print("🔄 Loading model...")
 
 model = keras.models.load_model(
-    os.path.join(MODEL_PATH, "cnn_lstm_model.keras"),
+    os.path.join(MODEL_PATH, "cnn_lstm_model.h5"),
     compile=False
 )
 
