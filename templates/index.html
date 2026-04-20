@@ -1041,49 +1041,7 @@ btnAnalyze.addEventListener('click', async () => {
 });
 
 /* ─── RESET DASHBOARD ────────────────────────────────────── */
-function resetDashboard() {
-  // Destroy all charts
-  if (ecgChart)  { ecgChart.destroy();  ecgChart  = null; }
-  if (beatChart) { beatChart.destroy(); beatChart = null; }
-  if (pieChart)  { pieChart.destroy();  pieChart  = null; }
 
-  // Reset state
-  ecgData      = null;
-  currentBeat  = -1;
-  activeFilter = 'ALL';
-
-  // Reset beat table
-  document.getElementById('beat-tbody').innerHTML = '';
-
-  // Reset filter buttons
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('.filter-btn[data-filter="ALL"]').classList.add('active');
-
-  // Reset beat inspector
-  document.getElementById('class-badge').textContent = '—';
-  document.getElementById('class-badge').className = 'class-badge';
-  document.getElementById('class-name').textContent = 'Select a beat';
-  document.getElementById('class-confidence').textContent = '';
-  document.getElementById('confidence-pct').textContent = '—';
-  document.getElementById('confidence-fill').style.width = '0%';
-  document.getElementById('explanation-text').textContent = 'Click a beat on the waveform or use navigation buttons above to inspect.';
-  document.getElementById('beat-nav-label').textContent = 'Beat — / —';
-  document.getElementById('prob-bars').innerHTML = '';
-
-  // Reset summary stats
-  document.getElementById('stat-total').textContent = '—';
-  document.getElementById('stat-confidence').textContent = '—';
-  document.getElementById('stat-abnormal').textContent = '—';
-  document.getElementById('stat-duration').textContent = '—';
-  document.getElementById('dist-legend').innerHTML = '';
-  document.getElementById('status-badge').textContent = '—';
-  document.getElementById('status-badge').className = 'status-badge';
-
-  // Hide results panels
-  results.classList.add('hidden');
-  summaryCard.classList.add('hidden');
-  emptyState.classList.remove('hidden');
-}
 
 /* ─── RENDER DASHBOARD ───────────────────────────────────── */
 function renderDashboard(data) {
