@@ -206,10 +206,6 @@ def health():
         "classes": CLASS_LABELS
     })
 
-# Replace predict_beat function with this batch version
-# Instead of calling model.predict() 30 times (very slow/heavy),
-# run ONE batch prediction
-
 @app.route("/predict", methods=["POST"])
 def predict():
     if "file" not in request.files:
@@ -220,52 +216,61 @@ def predict():
     file.save(filepath)
 
     try:
-        print("📂 Loading signal...")
+        print("📂 Step 1: File saved")
 
-        # Try column 1 first, fall back to column 0
+        # Try reading signal — handle different CSV formats
         try:
             signal = np.loadtxt(filepath, delimiter=',', skiprows=1, usecols=(1))
         except Exception:
-            signal = np.loadtxt(filepath, delimiter=',', skiprows=1, usecols=(0))
+            try:
+                signal = np.loadtxt(filepath, delimiter=',', skiprows=1, usecols=(0))
+            except Exception:
+                # Last resort: pandas
+                import pandas as pd
+                df = pd.read_csv(filepath)
+                signal = df.iloc[:, 1].values if df.shape[1] > 1 else df.iloc[:, 0].values
 
-        print(f"📊 Signal: {len(signal)} samples")
+        signal = np.array(signal, dtype=np.float32)
+        print(f"📊 Step 2: Signal loaded — {len(signal)} samples")
 
         if len(signal) < 360:
-            return jsonify({"error": "ECG signal too short"}), 400
+            return jsonify({"error": f"Signal too short: {len(signal)} samples"}), 400
 
-        beats, peaks = extract_beats(signal[:7200])
-        print(f"💓 Beats found: {len(beats)}")
+        # Limit to 20 seconds max to save memory
+        signal_trimmed = signal[:7200]
+
+        beats, peaks = extract_beats(signal_trimmed)
+        print(f"💓 Step 3: {len(beats)} beats found")
 
         if len(beats) == 0:
-            return jsonify({"error": "No valid beats detected"}), 400
+            return jsonify({"error": "No beats detected — check signal format or quality"}), 400
 
-        beats_to_use = beats[:30]
-        peaks_to_use = peaks[:30]
+        # Limit to 20 beats max on free tier
+        beats_to_use  = beats[:20]
+        peaks_to_use  = peaks[:20]
 
-        # ── BATCH predict (1 model call instead of 30) ──────
+        # Single batch prediction
+        beat_array  = np.array(beats_to_use, dtype=np.float32)   # (N, 180)
+        beat_scaled = scaler.transform(beat_array)                 # (N, 180)
+        X           = beat_scaled.reshape(-1, 180, 1)             # (N, 180, 1)
+
+        print("🧠 Step 4: Running prediction...")
+        all_probs = model.predict(X, verbose=0, batch_size=4)
+        print("✅ Step 5: Prediction complete")
+
         import gc
-        beat_array = np.array(beats_to_use)                      # (N, 180)
-        beat_scaled = scaler.transform(beat_array)                # (N, 180)
-        X = beat_scaled.reshape(len(beat_scaled), 180, 1)        # (N, 180, 1)
-
-        print("🧠 Running batch prediction...")
-        all_probs = model.predict(X, verbose=0, batch_size=8)    # (N, 4)
-        print("✅ Prediction done")
         gc.collect()
 
         results = []
         for i, probs in enumerate(all_probs):
-            sorted_idx   = np.argsort(probs)[::-1]
-            top_idx      = sorted_idx[0]
-            second_idx   = sorted_idx[1]
-            top_conf     = float(probs[top_idx])
-            second_conf  = float(probs[second_idx])
-            top_label    = CLASS_LABELS[top_idx]
+            sorted_idx  = np.argsort(probs)[::-1]
+            top_idx     = int(sorted_idx[0])
+            second_idx  = int(sorted_idx[1])
+            top_conf    = float(probs[top_idx])
+            second_conf = float(probs[second_idx])
+            top_label   = CLASS_LABELS[top_idx]
 
-            if top_conf < 0.65 or (top_conf - second_conf) < 0.15:
-                label = "Q"
-            else:
-                label = top_label
+            label = "Q" if (top_conf < 0.65 or (top_conf - second_conf) < 0.15) else top_label
 
             results.append({
                 "prediction":    label,
@@ -278,12 +283,12 @@ def predict():
             })
 
         summary = aggregate_predictions(results)
-        print("📤 Sending response")
+        print("📤 Step 6: Sending response")
 
         return jsonify({
             "summary":     summary,
             "predictions": results,
-            "signal":      [float(x) for x in signal[:7200]],
+            "signal":      [float(x) for x in signal_trimmed],
             "peaks":       [int(p) for p in peaks_to_use],
             "beats":       [b.tolist() for b in beats_to_use]
         })
@@ -291,7 +296,7 @@ def predict():
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        print("❌ ERROR:\n", tb)
+        print("❌ PREDICT ERROR:\n", tb)
         return jsonify({"error": str(e), "traceback": tb}), 500
 
     finally:
