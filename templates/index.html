@@ -1039,14 +1039,8 @@ btnAnalyze.addEventListener('click', async () => {
   }
 });
 
-/* ─── RESET DASHBOARD ────────────────────────────────────── */
-
-
 /* ─── RENDER DASHBOARD ───────────────────────────────────── */
 function renderDashboard(data) {
-  // Full reset before rendering new data
-  resetDashboard();
-
   emptyState.classList.add('hidden');
   results.classList.remove('hidden');
   summaryCard.classList.remove('hidden');
@@ -1057,6 +1051,7 @@ function renderDashboard(data) {
   renderBeatChart(-1);
   renderBeatTable(data.predictions);
 
+  // Inspect first beat
   if (data.predictions && data.predictions.length > 0) {
     inspectBeat(0);
   }
