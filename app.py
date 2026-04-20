@@ -184,7 +184,29 @@ def aggregate_predictions(results):
         "note":           "Automated screening only. Confirm with a cardiologist.",
     }
 
+@app.route("/test-predict", methods=["GET"])
+def test_predict():
+    """Test prediction with synthetic data — no file upload needed."""
+    try:
+        print("🧪 Test: creating synthetic beat...")
+        dummy_beat = np.random.randn(1, 180).astype(np.float32)
+        dummy_scaled = scaler.transform(dummy_beat)
+        X = dummy_scaled.reshape(1, 180, 1)
 
+        print("🧪 Test: running model.predict...")
+        probs = model.predict(X, verbose=0, batch_size=1)
+
+        print("🧪 Test: prediction done!")
+        return jsonify({
+            "status": "ok",
+            "probs": probs.tolist(),
+            "classes": CLASS_LABELS
+        })
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print("❌ TEST ERROR:\n", tb)
+        return jsonify({"error": str(e), "traceback": tb}), 500
 # ================================
 # ROUTES
 # ================================
