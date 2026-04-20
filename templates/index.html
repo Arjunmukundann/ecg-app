@@ -4,27 +4,749 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CardioLens — ECG Arrhythmia Analysis</title>
-
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-
-  <!-- Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-
-  <!-- Chart.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-
-  <!-- jsPDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+/* ═══════════════════════════════════════════════════════════
+   CardioLens — ECG Dashboard Styles
+   Font: DM Sans (body) + Playfair Display (brand) + DM Mono (data)
+   Theme: Clinical white with cobalt blue + emerald accents
+   ═══════════════════════════════════════════════════════════ */
 
-  <link rel="stylesheet" href="/static/css/dashboard.css" />
+/* ── CSS VARIABLES ─────────────────────────────────────── */
+:root {
+  --bg:          #f4f7fb;
+  --surface:     #ffffff;
+  --surface-2:   #f0f4f9;
+  --border:      #dde4ef;
+  --border-2:    #c8d2e8;
+
+  --text-primary:   #0d1b2e;
+  --text-secondary: #4a5878;
+  --text-muted:     #8896b0;
+
+  --blue:        #2563eb;
+  --blue-light:  #eff6ff;
+  --blue-mid:    #bfdbfe;
+  --green:       #10b981;
+  --green-light: #ecfdf5;
+  --red:         #ef4444;
+  --orange:      #f97316;
+  --purple:      #8b5cf6;
+  --gray:        #94a3b8;
+
+  /* Beat class colors */
+  --color-N: #10b981;
+  --color-S: #f97316;
+  --color-V: #ef4444;
+  --color-F: #8b5cf6;
+  --color-Q: #94a3b8;
+
+  --shadow-sm:  0 1px 3px rgba(13,27,46,.06), 0 1px 2px rgba(13,27,46,.04);
+  --shadow-md:  0 4px 16px rgba(13,27,46,.08), 0 1px 4px rgba(13,27,46,.04);
+  --shadow-lg:  0 12px 40px rgba(13,27,46,.12);
+
+  --radius-sm:  8px;
+  --radius-md:  14px;
+  --radius-lg:  20px;
+
+  --nav-h: 64px;
+  --disc-h: 44px;
+  --transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  --bg:          #0c111e;
+  --surface:     #131929;
+  --surface-2:   #1a2236;
+  --border:      #1e2d47;
+  --border-2:    #253657;
+
+  --text-primary:   #e8eeff;
+  --text-secondary: #8fa5cc;
+  --text-muted:     #4a6080;
+
+  --blue-light:  #0f1f3d;
+  --green-light: #062018;
+  --shadow-sm:  0 1px 3px rgba(0,0,0,.3);
+  --shadow-md:  0 4px 16px rgba(0,0,0,.4);
+  --shadow-lg:  0 12px 40px rgba(0,0,0,.5);
+}
+
+/* ── RESET & BASE ──────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 15px; scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  min-height: 100vh;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* ── TOP NAV ───────────────────────────────────────────── */
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #10b981);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  box-shadow: 0 2px 8px rgba(37,99,235,.35);
+}
+
+.brand-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.brand-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  margin-left: 4px;
+}
+
+.nav-actions { display: flex; align-items: center; gap: 12px; }
+
+.icon-btn {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: var(--blue-light); color: var(--blue); border-color: var(--blue-mid); }
+
+.pill-btn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex; align-items: center; gap: 7px;
+}
+.pill-btn:not(:disabled):hover {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+  box-shadow: 0 4px 14px rgba(37,99,235,.4);
+}
+.pill-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── DISCLAIMER ─────────────────────────────────────────── */
+.disclaimer-banner {
+  height: var(--disc-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fef9ec;
+  border-bottom: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0 20px;
+  text-align: center;
+}
+[data-theme="dark"] .disclaimer-banner {
+  background: #1c150a; color: #d97706; border-color: #3d2d0a;
+}
+.disclaimer-banner i { color: #f59e0b; font-size: 0.9rem; }
+
+/* ── LAYOUT ─────────────────────────────────────────────── */
+.app-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 0;
+  min-height: calc(100vh - var(--nav-h) - var(--disc-h));
+}
+
+.left-panel {
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: calc(100vh - var(--nav-h) - var(--disc-h));
+  position: sticky;
+  top: calc(var(--nav-h) + var(--disc-h));
+}
+
+.right-panel {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+/* ── CARDS ──────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow var(--transition);
+}
+.card:hover { box-shadow: var(--shadow-md); }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.card-header > i {
+  font-size: 1rem;
+  color: var(--blue);
+  width: 20px;
+  text-align: center;
+}
+.card-header h3 {
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text-primary);
+  flex: 1;
+}
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ── UPLOAD CARD ─────────────────────────────────────────── */
+.drop-zone {
+  margin: 16px;
+  padding: 24px 16px;
+  border: 2px dashed var(--border-2);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+.drop-icon {
+  font-size: 2rem;
+  color: var(--blue);
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+.drop-title { font-weight: 600; color: var(--text-primary); font-size: 0.9rem; }
+.drop-sub { font-size: 0.78rem; color: var(--text-muted); }
+
+.browse-btn {
+  margin-top: 6px;
+  padding: 8px 18px;
+  border-radius: 99px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.browse-btn:hover { background: #1d4ed8; box-shadow: 0 4px 14px rgba(37,99,235,.35); }
+
+.file-info {
+  margin: 0 16px 12px;
+  padding: 10px 14px;
+  background: var(--blue-light);
+  border: 1px solid var(--blue-mid);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.file-info-icon { font-size: 1.4rem; color: var(--blue); }
+.file-info-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.file-info-text span:first-child {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.muted { font-size: 0.75rem; color: var(--text-muted); }
+
+.clear-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 1rem; padding: 4px;
+  border-radius: 6px; transition: all var(--transition);
+}
+.clear-btn:hover { color: var(--red); background: #fef2f2; }
+
+.analyze-btn {
+  width: calc(100% - 32px);
+  margin: 0 16px 16px;
+  height: 46px;
+  border-radius: 99px;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.analyze-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  opacity: 0; transition: opacity var(--transition);
+}
+.analyze-btn:not(:disabled):hover { box-shadow: 0 6px 20px rgba(37,99,235,.45); }
+.analyze-btn:not(:disabled):hover::before { opacity: 1; }
+.analyze-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-label, .btn-loading { position: relative; display: flex; align-items: center; gap: 8px; }
+
+/* ── SUMMARY CARD ─────────────────────────────────────────── */
+.status-badge-wrap { padding: 14px 20px 0; }
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 99px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.status-normal     { background: var(--green-light); color: #065f46; border: 1px solid #a7f3d0; }
+.status-abnormal   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.status-borderline { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.status-inconclusive { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  margin: 16px 0 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.stat-item {
+  background: var(--surface);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.stat-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--blue);
+  line-height: 1;
+}
+.stat-lbl { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.dist-legend {
+  padding: 14px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.dist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.dist-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dist-label { flex: 1; color: var(--text-secondary); }
+.dist-count { font-family: 'DM Mono', monospace; font-weight: 500; color: var(--text-primary); font-size: 0.82rem; }
+.dist-pct { color: var(--text-muted); font-size: 0.78rem; margin-left: 4px; }
+
+.chart-wrap {
+  padding: 16px 20px;
+  max-height: 200px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── LEGEND CARD ─────────────────────────────────────────── */
+.legend-list {
+  list-style: none;
+  padding: 12px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dot-N { background: var(--color-N); }
+.dot-S { background: var(--color-S); }
+.dot-V { background: var(--color-V); }
+.dot-F { background: var(--color-F); }
+.dot-Q { background: var(--color-Q); }
+
+/* ── EMPTY STATE ─────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 60vh;
+  text-align: center;
+  padding: 40px 20px;
+  animation: fadeIn 0.5s ease;
+}
+.empty-art { width: 100%; max-width: 440px; opacity: 0.7; }
+.hero-wave { width: 100%; height: auto; }
+.empty-state h2 {
+  font-size: 1.3rem; font-weight: 650; color: var(--text-primary);
+  max-width: 400px;
+}
+.empty-state p {
+  font-size: 0.9rem; color: var(--text-muted);
+  max-width: 380px; line-height: 1.6;
+}
+
+/* ── WAVEFORM CARD ─────────────────────────────────────────── */
+.waveform-card .card-header { padding: 14px 20px; }
+.chart-hint {
+  font-size: 0.77rem;
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: 5px;
+}
+.waveform-container {
+  padding: 16px 20px;
+  background: var(--surface-2);
+  position: relative;
+}
+.waveform-container canvas { width: 100% !important; max-height: 200px; }
+
+/* ── BEAT INSPECTOR ─────────────────────────────────────────── */
+.inspector-body {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+}
+.beat-waveform {
+  padding: 16px 20px;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.beat-waveform canvas { width: 100% !important; max-height: 160px; }
+
+.beat-details { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+.beat-class-display {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.class-badge {
+  width: 54px; height: 54px;
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.badge-N { background: var(--green-light); color: var(--color-N); }
+.badge-S { background: #fff7ed; color: var(--color-S); }
+.badge-V { background: #fef2f2; color: var(--color-V); }
+.badge-F { background: #f5f3ff; color: var(--color-F); }
+.badge-Q { background: var(--surface-2); color: var(--color-Q); }
+
+.class-name {
+  font-size: 0.95rem; font-weight: 650; color: var(--text-primary); line-height: 1.3;
+}
+.class-confidence { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+
+.confidence-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.confidence-bar-bg {
+  flex: 1; height: 8px; background: var(--surface-2);
+  border-radius: 99px; overflow: hidden; border: 1px solid var(--border);
+}
+.confidence-bar-fill {
+  height: 100%; border-radius: 99px;
+  background: var(--green);
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+  width: 0%;
+}
+.confidence-pct {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem; font-weight: 500; width: 48px; text-align: right;
+  color: var(--text-primary);
+}
+
+.explanation-box {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--blue-light);
+  border: 1px solid var(--blue-mid);
+  border-radius: var(--radius-sm);
+}
+.explanation-box > i { color: var(--blue); margin-top: 2px; flex-shrink: 0; font-size: 0.9rem; }
+.explanation-box p { font-size: 0.83rem; color: var(--text-secondary); line-height: 1.55; }
+
+[data-theme="dark"] .explanation-box {
+  background: #0f1f3d; border-color: #1e3a6e; color: #93c5fd;
+}
+
+/* Probability bars */
+.prob-bars { display: flex; flex-direction: column; gap: 8px; }
+.prob-row { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+.prob-cls { width: 20px; font-family: 'DM Mono', monospace; font-weight: 700; color: var(--text-secondary); }
+.prob-bg { flex: 1; height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.prob-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+.prob-val { width: 40px; text-align: right; font-family: 'DM Mono', monospace; color: var(--text-muted); font-size: 0.75rem; }
+
+/* Beat nav */
+.beat-nav { gap: 6px; }
+.nav-btn {
+  width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-secondary);
+  cursor: pointer; transition: all var(--transition);
+  display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+}
+.nav-btn:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+#beat-nav-label { font-size: 0.82rem; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+
+/* ── BEAT TABLE ─────────────────────────────────────────────── */
+.table-card .card-header { flex-wrap: wrap; gap: 8px; }
+.class-filter { display: flex; gap: 4px; flex-wrap: wrap; }
+.filter-btn {
+  padding: 4px 12px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.78rem; font-weight: 600; font-family: 'DM Sans', sans-serif;
+  cursor: pointer; transition: all var(--transition);
+}
+.filter-btn:hover { border-color: var(--blue-mid); color: var(--blue); }
+.filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+.table-scroll { overflow-x: auto; }
+
+.beat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+.beat-table thead { position: sticky; top: 0; background: var(--surface-2); }
+.beat-table th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.beat-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.82rem;
+}
+.beat-table tbody tr { transition: background var(--transition); cursor: pointer; }
+.beat-table tbody tr:hover { background: var(--blue-light); }
+.beat-table tbody tr.active-row { background: var(--blue-light); }
+.beat-table tbody tr:last-child td { border-bottom: none; }
+
+.class-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: 'DM Mono', monospace;
+}
+.chip-N { background: var(--green-light); color: var(--color-N); }
+.chip-S { background: #fff7ed; color: var(--color-S); }
+.chip-V { background: #fef2f2; color: var(--color-V); }
+.chip-F { background: #f5f3ff; color: var(--color-F); }
+.chip-Q { background: var(--surface-2); color: var(--color-Q); }
+
+.conf-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+.conf-high   { background: var(--green-light); color: #065f46; }
+.conf-medium { background: #fff7ed; color: #9a3412; }
+.conf-low    { background: #fef2f2; color: #991b1b; }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot.normal   { background: var(--color-N); }
+.status-dot.abnormal { background: var(--color-V); }
+.status-dot.caution  { background: var(--color-S); }
+.status-dot.unknown  { background: var(--color-Q); }
+
+.inspect-btn {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.75rem; font-weight: 600; font-family: 'DM Sans', sans-serif;
+  cursor: pointer; transition: all var(--transition);
+}
+.inspect-btn:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+/* ── TOAST ──────────────────────────────────────────────────── */
+#toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--text-primary);
+  color: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.3s ease;
+  pointer-events: auto;
+  max-width: 340px;
+  display: flex; align-items: center; gap: 10px;
+}
+.toast.error { background: var(--red); }
+.toast.success { background: var(--green); }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── UTILITIES ──────────────────────────────────────────────── */
+.hidden { display: none !important; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.results > * { animation: fadeIn 0.4s ease both; }
+.results > *:nth-child(1) { animation-delay: 0.05s; }
+.results > *:nth-child(2) { animation-delay: 0.12s; }
+.results > *:nth-child(3) { animation-delay: 0.2s; }
+
+/* ── RESPONSIVE ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .app-layout { grid-template-columns: 280px 1fr; }
+}
+
+@media (max-width: 860px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+  .left-panel {
+    max-height: none;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .inspector-body { grid-template-columns: 1fr; }
+  .beat-waveform { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+@media (max-width: 600px) {
+  .topnav { padding: 0 16px; }
+  .brand-tag { display: none; }
+  .right-panel { padding: 16px; }
+  .left-panel { padding: 16px; }
+}
+
+  </style>
 </head>
 <body>
-
-  <!-- ── TOP NAV ─────────────────────────────────────────── -->
   <nav class="topnav">
     <div class="nav-brand">
       <span class="brand-icon"><i class="fa-solid fa-heart-pulse"></i></span>
@@ -32,40 +754,25 @@
       <span class="brand-tag">AI ECG Analysis</span>
     </div>
     <div class="nav-actions">
-      <button id="btn-dark-mode" class="icon-btn" title="Toggle dark mode">
-        <i class="fa-solid fa-moon"></i>
-      </button>
-      <button id="btn-download-report" class="pill-btn" disabled>
-        <i class="fa-solid fa-file-arrow-down"></i> Export Report
-      </button>
+      <button id="btn-dark-mode" class="icon-btn" title="Toggle dark mode"><i class="fa-solid fa-moon"></i></button>
+      <button id="btn-download-report" class="pill-btn" disabled><i class="fa-solid fa-file-arrow-down"></i> Export Report</button>
     </div>
   </nav>
 
-  <!-- ── DISCLAIMER BANNER ──────────────────────────────── -->
   <div class="disclaimer-banner">
     <i class="fa-solid fa-triangle-exclamation"></i>
     <strong>Medical Disclaimer:</strong> This is an AI-based screening tool and not a medical diagnosis. Always consult a qualified cardiologist for clinical decisions.
   </div>
 
-  <!-- ── MAIN LAYOUT ────────────────────────────────────── -->
   <main class="app-layout">
-
-    <!-- ════ LEFT PANEL ════ -->
     <aside class="left-panel">
-
-      <!-- Upload Card -->
       <div class="card upload-card" id="upload-card">
-        <div class="card-header">
-          <i class="fa-solid fa-upload"></i>
-          <h3>Upload ECG File</h3>
-        </div>
+        <div class="card-header"><i class="fa-solid fa-upload"></i><h3>Upload ECG File</h3></div>
         <div class="drop-zone" id="drop-zone">
           <div class="drop-icon"><i class="fa-regular fa-file-waveform"></i></div>
           <p class="drop-title">Drag & drop CSV here</p>
           <p class="drop-sub">MIT-BIH format · CSV</p>
-          <label class="browse-btn" for="file-input">
-            <i class="fa-solid fa-folder-open"></i> Browse File
-          </label>
+          <label class="browse-btn" for="file-input"><i class="fa-solid fa-folder-open"></i> Browse File</label>
           <input type="file" id="file-input" accept=".csv" hidden />
         </div>
         <div class="file-info hidden" id="file-info">
@@ -82,51 +789,21 @@
         </button>
       </div>
 
-      <!-- Summary Card -->
       <div class="card summary-card hidden" id="summary-card">
-        <div class="card-header">
-          <i class="fa-solid fa-chart-pie"></i>
-          <h3>Summary</h3>
-        </div>
-
-        <div class="status-badge-wrap">
-          <div class="status-badge" id="status-badge">—</div>
-        </div>
-
+        <div class="card-header"><i class="fa-solid fa-chart-pie"></i><h3>Summary</h3></div>
+        <div class="status-badge-wrap"><div class="status-badge" id="status-badge">—</div></div>
         <div class="stat-grid">
-          <div class="stat-item">
-            <span class="stat-val" id="stat-total">—</span>
-            <span class="stat-lbl">Total Beats</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-val" id="stat-confidence">—</span>
-            <span class="stat-lbl">Avg Confidence</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-val" id="stat-abnormal">—</span>
-            <span class="stat-lbl">Abnormal Beats</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-val" id="stat-duration">—</span>
-            <span class="stat-lbl">Signal Duration</span>
-          </div>
+          <div class="stat-item"><span class="stat-val" id="stat-total">—</span><span class="stat-lbl">Total Beats</span></div>
+          <div class="stat-item"><span class="stat-val" id="stat-confidence">—</span><span class="stat-lbl">Avg Confidence</span></div>
+          <div class="stat-item"><span class="stat-val" id="stat-abnormal">—</span><span class="stat-lbl">Abnormal Beats</span></div>
+          <div class="stat-item"><span class="stat-val" id="stat-duration">—</span><span class="stat-lbl">Signal Duration</span></div>
         </div>
-
-        <!-- Distribution Legend -->
         <div class="dist-legend" id="dist-legend"></div>
-
-        <!-- Pie Chart -->
-        <div class="chart-wrap">
-          <canvas id="pie-chart"></canvas>
-        </div>
+        <div class="chart-wrap"><canvas id="pie-chart"></canvas></div>
       </div>
 
-      <!-- Beat Legend -->
       <div class="card legend-card">
-        <div class="card-header">
-          <i class="fa-solid fa-tags"></i>
-          <h3>Beat Classes</h3>
-        </div>
+        <div class="card-header"><i class="fa-solid fa-tags"></i><h3>Beat Classes</h3></div>
         <ul class="legend-list">
           <li><span class="dot dot-N"></span><strong>N</strong> — Normal Sinus</li>
           <li><span class="dot dot-S"></span><strong>S</strong> — Supraventricular Ectopic</li>
@@ -135,67 +812,40 @@
           <li><span class="dot dot-Q"></span><strong>Q</strong> — Low Confidence / Unknown</li>
         </ul>
       </div>
-
     </aside>
 
-    <!-- ════ RIGHT PANEL ════ -->
     <section class="right-panel">
-
-      <!-- Welcome / Empty State -->
       <div class="empty-state" id="empty-state">
         <div class="empty-art">
           <svg viewBox="0 0 400 160" xmlns="http://www.w3.org/2000/svg" class="hero-wave">
-            <polyline points="0,80 40,80 55,40 70,120 85,80 120,80 135,30 150,130 165,80 200,80 215,60 230,100 245,80 280,80 295,20 310,140 325,80 360,80 400,80"
-              fill="none" stroke="url(#waveGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            <defs>
-              <linearGradient id="waveGrad" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
-                <stop offset="50%" stop-color="#10b981" stop-opacity="0.8"/>
-                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.3"/>
-              </linearGradient>
-            </defs>
+            <polyline points="0,80 40,80 55,40 70,120 85,80 120,80 135,30 150,130 165,80 200,80 215,60 230,100 245,80 280,80 295,20 310,140 325,80 360,80 400,80" fill="none" stroke="url(#waveGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs><linearGradient id="waveGrad" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/><stop offset="50%" stop-color="#10b981" stop-opacity="0.8"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.3"/></linearGradient></defs>
           </svg>
         </div>
         <h2>Upload an ECG file to begin analysis</h2>
         <p>Supports MIT-BIH format CSV files. The AI model will detect beats, classify arrhythmias, and visualize results.</p>
       </div>
 
-      <!-- Analysis Results (hidden until loaded) -->
       <div class="results hidden" id="results">
-
-        <!-- Full ECG Waveform -->
         <div class="card waveform-card">
           <div class="card-header">
-            <i class="fa-solid fa-wave-square"></i>
-            <h3>ECG Signal — Full View</h3>
-            <div class="card-actions">
-              <span class="chart-hint"><i class="fa-solid fa-circle-info"></i> Click a beat marker to inspect</span>
-            </div>
+            <i class="fa-solid fa-wave-square"></i><h3>ECG Signal — Full View</h3>
+            <div class="card-actions"><span class="chart-hint"><i class="fa-solid fa-circle-info"></i> Click a beat marker to inspect</span></div>
           </div>
-          <div class="waveform-container">
-            <canvas id="ecg-chart"></canvas>
-          </div>
+          <div class="waveform-container"><canvas id="ecg-chart"></canvas></div>
         </div>
 
-        <!-- Beat Inspector -->
         <div class="card beat-inspector-card" id="beat-inspector-card">
           <div class="card-header">
-            <i class="fa-solid fa-magnifying-glass-chart"></i>
-            <h3>Beat Inspector</h3>
+            <i class="fa-solid fa-magnifying-glass-chart"></i><h3>Beat Inspector</h3>
             <div class="card-actions beat-nav">
               <button class="nav-btn" id="btn-prev-beat"><i class="fa-solid fa-chevron-left"></i></button>
               <span id="beat-nav-label">Beat — / —</span>
               <button class="nav-btn" id="btn-next-beat"><i class="fa-solid fa-chevron-right"></i></button>
             </div>
           </div>
-
           <div class="inspector-body">
-            <!-- Beat waveform zoom -->
-            <div class="beat-waveform">
-              <canvas id="beat-chart"></canvas>
-            </div>
-
-            <!-- Beat details -->
+            <div class="beat-waveform"><canvas id="beat-chart"></canvas></div>
             <div class="beat-details" id="beat-details">
               <div class="beat-class-display" id="beat-class-display">
                 <span class="class-badge" id="class-badge">—</span>
@@ -204,30 +854,22 @@
                   <p class="class-confidence" id="class-confidence"></p>
                 </div>
               </div>
-
               <div class="confidence-bar-wrap">
-                <div class="confidence-bar-bg">
-                  <div class="confidence-bar-fill" id="confidence-fill"></div>
-                </div>
+                <div class="confidence-bar-bg"><div class="confidence-bar-fill" id="confidence-fill"></div></div>
                 <span class="confidence-pct" id="confidence-pct">—</span>
               </div>
-
               <div class="explanation-box" id="explanation-box">
                 <i class="fa-solid fa-circle-info"></i>
                 <p id="explanation-text">Click a beat on the waveform or use navigation buttons above to inspect.</p>
               </div>
-
-              <!-- All-class probability bars -->
               <div class="prob-bars" id="prob-bars"></div>
             </div>
           </div>
         </div>
 
-        <!-- Beat Table -->
         <div class="card table-card">
           <div class="card-header">
-            <i class="fa-solid fa-table-list"></i>
-            <h3>Beat-level Predictions</h3>
+            <i class="fa-solid fa-table-list"></i><h3>Beat-level Predictions</h3>
             <div class="card-actions">
               <div class="class-filter" id="class-filter">
                 <button class="filter-btn active" data-filter="ALL">All</button>
@@ -241,29 +883,787 @@
           </div>
           <div class="table-scroll">
             <table class="beat-table" id="beat-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Sample</th>
-                  <th>Time (s)</th>
-                  <th>Class</th>
-                  <th>Confidence</th>
-                  <th>Status</th>
-                  <th>Inspect</th>
-                </tr>
-              </thead>
+              <thead><tr><th>#</th><th>Sample</th><th>Time (s)</th><th>Class</th><th>Confidence</th><th>Status</th><th>Inspect</th></tr></thead>
               <tbody id="beat-tbody"></tbody>
             </table>
           </div>
         </div>
-
-      </div><!-- /results -->
+      </div>
     </section>
   </main>
 
-  <!-- ── TOAST CONTAINER ───────────────────────────────── -->
   <div id="toast-container"></div>
 
-  <script src="/static/js/dashboard.js"></script>
+  <script>
+/**
+ * CardioLens — ECG Dashboard JavaScript
+ * Handles: file upload, API calls, Chart.js visualizations,
+ *          beat inspection, dark mode, PDF export.
+ */
+
+/* ─── CONSTANTS ──────────────────────────────────────────── */
+const API_URL = '/predict';           // Flask endpoint
+const SAMPLE_RATE = 360;              // MIT-BIH default (Hz)
+const CONFIDENCE_THRESHOLD = 0.65;   // Below this → low-confidence warning
+
+const CLASS_COLORS = {
+  N: '#10b981',
+  S: '#f97316',
+  V: '#ef4444',
+  F: '#8b5cf6',
+  Q: '#94a3b8',
+};
+
+const CLASS_NAMES = {
+  N: 'Normal Sinus Beat',
+  S: 'Supraventricular Ectopic',
+  V: 'Ventricular Ectopic',
+  F: 'Fusion Beat',
+  Q: 'Unknown / Low Confidence',
+};
+
+const CLASS_EXPLANATIONS = {
+  N: 'Normal beats follow a consistent rhythm and morphology — a regular P wave, narrow QRS complex, and predictable T wave. No arrhythmia detected.',
+  S: 'Supraventricular ectopic beats originate above the ventricles (e.g., atrial or junctional). They may show an abnormal P wave or slightly irregular timing, but the QRS is usually narrow.',
+  V: 'Ventricular ectopic beats originate below the AV node. They characteristically have a wide, bizarre QRS complex with no preceding P wave and an abnormal repolarisation pattern.',
+  F: 'Fusion beats occur when a normal sinus impulse and a ventricular ectopic impulse activate the ventricles simultaneously, resulting in a complex that is intermediate in shape.',
+  Q: 'The model confidence is below the decision threshold. The signal may be noisy, saturated, or morphologically ambiguous. Manual review by a cardiologist is strongly recommended.',
+};
+
+/* ─── STATE ──────────────────────────────────────────────── */
+let ecgData       = null;   // { signal, peaks, predictions }
+let currentBeat   = -1;     // index of selected beat
+let pieChart      = null;
+let ecgChart      = null;
+let beatChart     = null;
+let activeFilter  = 'ALL';
+let isDarkMode    = false;
+
+/* ─── DOM REFS ───────────────────────────────────────────── */
+const dropZone      = document.getElementById('drop-zone');
+const fileInput     = document.getElementById('file-input');
+const fileInfo      = document.getElementById('file-info');
+const fileName      = document.getElementById('file-name');
+const fileSize      = document.getElementById('file-size');
+const btnClear      = document.getElementById('btn-clear');
+const btnAnalyze    = document.getElementById('btn-analyze');
+const btnDark       = document.getElementById('btn-dark-mode');
+const btnReport     = document.getElementById('btn-download-report');
+const emptyState    = document.getElementById('empty-state');
+const results       = document.getElementById('results');
+const summaryCard   = document.getElementById('summary-card');
+
+/* ─── DARK MODE ──────────────────────────────────────────── */
+btnDark.addEventListener('click', () => {
+  isDarkMode = !isDarkMode;
+  document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+  btnDark.innerHTML = isDarkMode
+    ? '<i class="fa-solid fa-sun"></i>'
+    : '<i class="fa-solid fa-moon"></i>';
+  // Refresh charts on theme change
+  if (ecgData) {
+    renderEcgChart();
+    renderBeatChart(currentBeat);
+    renderPieChart(ecgData.summary);
+  }
+});
+
+/* ─── FILE HANDLING ──────────────────────────────────────── */
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) setFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+
+function setFile(file) {
+  if (!file.name.endsWith('.csv')) {
+    showToast('Please upload a .csv file.', 'error');
+    return;
+  }
+  fileName.textContent = file.name;
+  fileSize.textContent = formatBytes(file.size);
+  fileInfo.classList.remove('hidden');
+  dropZone.classList.add('hidden');
+  btnAnalyze.disabled = false;
+  btnAnalyze._file = file;
+}
+
+btnClear.addEventListener('click', () => {
+  fileInput.value = '';
+  fileInfo.classList.add('hidden');
+  dropZone.classList.remove('hidden');
+  btnAnalyze.disabled = true;
+  btnAnalyze._file = null;
+});
+
+/* ─── ANALYZE ────────────────────────────────────────────── */
+btnAnalyze.addEventListener('click', async () => {
+  const file = btnAnalyze._file;
+  if (!file) return;
+
+  btnAnalyze.querySelector('.btn-label').classList.add('hidden');
+  btnAnalyze.querySelector('.btn-loading').classList.remove('hidden');
+  btnAnalyze.disabled = true;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const resp = await fetch(API_URL, { method: 'POST', body: formData });
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+
+    const data = await resp.json();
+    ecgData = data;
+
+    renderDashboard(data);
+    showToast('Analysis complete!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Analysis failed: ' + err.message, 'error');
+  } finally {
+    btnAnalyze.querySelector('.btn-label').classList.remove('hidden');
+    btnAnalyze.querySelector('.btn-loading').classList.add('hidden');
+    btnAnalyze.disabled = false;
+  }
+});
+
+/* ─── RENDER DASHBOARD ───────────────────────────────────── */
+function renderDashboard(data) {
+  emptyState.classList.add('hidden');
+  results.classList.remove('hidden');
+  summaryCard.classList.remove('hidden');
+  btnReport.disabled = false;
+
+  renderSummary(data.summary, data.predictions);
+  renderEcgChart(data);
+  renderBeatChart(-1);
+  renderBeatTable(data.predictions);
+
+  // Inspect first beat
+  if (data.predictions && data.predictions.length > 0) {
+    inspectBeat(0);
+  }
+}
+
+/* ─── SUMMARY ────────────────────────────────────────────── */
+function renderSummary(summary, predictions) {
+  const total = summary.total_beats || 0;
+  const counts = summary.class_counts || {};
+
+  // Status
+  const abnormalClasses = ['V', 'S', 'F'];
+  const abnormalCount = abnormalClasses.reduce((s, c) => s + (counts[c] || 0), 0);
+  const qCount = counts['Q'] || 0;
+  const abRatio = total > 0 ? abnormalCount / total : 0;
+
+  let statusLabel, statusClass, statusIcon;
+  if (total === 0) {
+    statusLabel = 'No Data'; statusClass = 'status-inconclusive'; statusIcon = '—';
+  } else if (abRatio > 0.15) {
+    statusLabel = '⚠ Abnormal Findings'; statusClass = 'status-abnormal'; statusIcon = '⚠';
+  } else if (abRatio > 0.05 || qCount > total * 0.1) {
+    statusLabel = 'Borderline'; statusClass = 'status-borderline'; statusIcon = '◐';
+  } else if (qCount > total * 0.3) {
+    statusLabel = 'Inconclusive'; statusClass = 'status-inconclusive'; statusIcon = '?';
+  } else {
+    statusLabel = '✓ Predominantly Normal'; statusClass = 'status-normal'; statusIcon = '✓';
+  }
+
+  const badge = document.getElementById('status-badge');
+  badge.textContent = statusLabel;
+  badge.className = 'status-badge ' + statusClass;
+
+  // Stats
+  document.getElementById('stat-total').textContent = total;
+  const avgConf = summary.avg_confidence != null
+    ? (summary.avg_confidence * 100).toFixed(1) + '%'
+    : '—';
+  document.getElementById('stat-confidence').textContent = avgConf;
+  document.getElementById('stat-abnormal').textContent = abnormalCount;
+  const dur = summary.signal_length != null
+    ? (summary.signal_length / SAMPLE_RATE).toFixed(1) + 's'
+    : '—';
+  document.getElementById('stat-duration').textContent = dur;
+
+  // Distribution legend
+  const legend = document.getElementById('dist-legend');
+  legend.innerHTML = '';
+  const classOrder = ['N', 'S', 'V', 'F', 'Q'];
+  classOrder.forEach(cls => {
+    const count = counts[cls] || 0;
+    if (count === 0) return;
+    const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
+    const row = document.createElement('div');
+    row.className = 'dist-row';
+    row.innerHTML = `
+      <span class="dist-dot" style="background:${CLASS_COLORS[cls]}"></span>
+      <span class="dist-label">${CLASS_NAMES[cls].split(' ')[0]} (${cls})</span>
+      <span class="dist-count">${count}</span>
+      <span class="dist-pct">${pct}%</span>
+    `;
+    legend.appendChild(row);
+  });
+
+  renderPieChart(summary);
+}
+
+function renderPieChart(summary) {
+  if (pieChart) { pieChart.destroy(); pieChart = null; }
+  const canvas = document.getElementById('pie-chart');
+  const ctx = canvas.getContext('2d');
+
+  const counts = summary.class_counts || {};
+  const labels = [], data = [], colors = [];
+  ['N', 'S', 'V', 'F', 'Q'].forEach(cls => {
+    const c = counts[cls] || 0;
+    if (c > 0) {
+      labels.push(cls);
+      data.push(c);
+      colors.push(CLASS_COLORS[cls]);
+    }
+  });
+
+  pieChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--surface') || '#fff' }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.parsed} beats (${((ctx.parsed / ctx.dataset.data.reduce((a, b) => a + b, 0)) * 100).toFixed(1)}%)`
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ─── ECG CHART ──────────────────────────────────────────── */
+function renderEcgChart(data) {
+  data = data || ecgData;
+  if (!data) return;
+  if (ecgChart) { ecgChart.destroy(); ecgChart = null; }
+
+  const signal  = data.signal || [];
+  const peaks   = data.peaks  || [];
+  const preds   = data.predictions || [];
+
+  // Limit to first 20 seconds
+  const maxSamples = SAMPLE_RATE * 20;
+  const displaySignal = signal.slice(0, maxSamples);
+  const labels = displaySignal.map((_, i) => (i / SAMPLE_RATE).toFixed(2));
+
+  // Build R-peak scatter points, color-coded by predicted class
+  const peakDatasets = [];
+  const classPeaks = {};
+  peaks.forEach((p, idx) => {
+    if (p >= maxSamples) return;
+    const cls = preds[idx] ? preds[idx].prediction : 'Q';
+    if (!classPeaks[cls]) classPeaks[cls] = [];
+    classPeaks[cls].push({ x: (p / SAMPLE_RATE).toFixed(3), y: signal[p], beatIdx: idx, sampleIdx: p });
+  });
+
+  Object.entries(classPeaks).forEach(([cls, points]) => {
+    peakDatasets.push({
+      type: 'scatter',
+      label: `${cls} beats`,
+      data: points.map(pt => ({ x: parseFloat(pt.x), y: pt.y })),
+      backgroundColor: CLASS_COLORS[cls],
+      pointRadius: 6,
+      pointHoverRadius: 9,
+      pointStyle: 'circle',
+      showLine: false,
+      order: 0,
+      _beatMeta: points,
+    });
+  });
+
+  const isDark = isDarkMode;
+  const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)';
+  const tickColor = isDark ? '#4a6080' : '#94a3b8';
+
+  const canvas = document.getElementById('ecg-chart');
+  const ctx = canvas.getContext('2d');
+
+  ecgChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'ECG Signal',
+          data: displaySignal,
+          borderColor: isDark ? '#60a5fa' : '#2563eb',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+          order: 1,
+        },
+        ...peakDatasets
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600 },
+      interaction: { mode: 'nearest', intersect: true },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const item = items[0];
+              if (item.dataset.type === 'scatter') {
+                const meta = item.dataset._beatMeta;
+                const pt = meta[item.dataIndex];
+                return `Beat #${pt.beatIdx + 1} — ${(pt.x).toFixed(3)}s`;
+              }
+              return `t = ${parseFloat(item.label).toFixed(3)}s`;
+            },
+            label: (item) => {
+              if (item.dataset.type === 'scatter') {
+                const meta = item.dataset._beatMeta;
+                const pt = meta[item.dataIndex];
+                const pred = ecgData.predictions[pt.beatIdx];
+                const cls = pred ? pred.prediction : '?';
+                const conf = pred ? (pred.confidence * 100).toFixed(1) + '%' : '—';
+                return [`Class: ${cls} (${CLASS_NAMES[cls] || ''})`, `Confidence: ${conf}`];
+              }
+              return `Amplitude: ${parseFloat(item.raw).toFixed(4)}`;
+            }
+          }
+        }
+      },
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const el = elements[0];
+        const ds = ecgChart.data.datasets[el.datasetIndex];
+        if (ds._beatMeta) {
+          const pt = ds._beatMeta[el.index];
+          inspectBeat(pt.beatIdx);
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Time (s)', color: tickColor, font: { size: 11 } },
+          grid: { color: gridColor },
+          ticks: { color: tickColor, maxTicksLimit: 12,
+            callback: v => parseFloat(v).toFixed(1) + 's' }
+        },
+        y: {
+          title: { display: true, text: 'Amplitude (mV)', color: tickColor, font: { size: 11 } },
+          grid: { color: gridColor },
+          ticks: { color: tickColor }
+        }
+      }
+    }
+  });
+}
+
+/* ─── BEAT CHART ──────────────────────────────────────────── */
+function renderBeatChart(beatIdx) {
+  if (beatChart) { beatChart.destroy(); beatChart = null; }
+
+  const canvas = document.getElementById('beat-chart');
+  const ctx = canvas.getContext('2d');
+
+  const isDark = isDarkMode;
+  const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)';
+  const tickColor = isDark ? '#4a6080' : '#94a3b8';
+
+  if (beatIdx < 0 || !ecgData || !ecgData.beats || !ecgData.beats[beatIdx]) {
+    beatChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#94a3b8', borderWidth: 1, pointRadius: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+    return;
+  }
+
+  const beat = ecgData.beats[beatIdx];
+  const pred = ecgData.predictions[beatIdx];
+  const cls  = pred ? pred.prediction : 'Q';
+  const color = CLASS_COLORS[cls];
+
+  const labels = beat.map((_, i) => i);
+
+  // Find QRS peak (max amplitude in middle third)
+  const midStart = Math.floor(beat.length / 3);
+  const midEnd   = Math.floor((2 * beat.length) / 3);
+  let peakIdx = midStart;
+  for (let i = midStart; i < midEnd; i++) {
+    if (Math.abs(beat[i]) > Math.abs(beat[peakIdx])) peakIdx = i;
+  }
+
+  beatChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Beat Waveform',
+          data: beat,
+          borderColor: color,
+          borderWidth: 2.5,
+          backgroundColor: color + '15',
+          fill: true,
+          pointRadius: 0,
+          tension: 0.3,
+        },
+        {
+          label: 'R-peak',
+          type: 'scatter',
+          data: [{ x: peakIdx, y: beat[peakIdx] }],
+          backgroundColor: color,
+          pointRadius: 8,
+          pointStyle: 'triangle',
+          showLine: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => `Sample ${items[0].parsed.x}`,
+            label: items => `Amplitude: ${parseFloat(items[0].parsed.y).toFixed(4)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Sample', color: tickColor, font: { size: 10 } },
+          grid: { color: gridColor },
+          ticks: { color: tickColor, maxTicksLimit: 10 }
+        },
+        y: {
+          title: { display: true, text: 'mV', color: tickColor, font: { size: 10 } },
+          grid: { color: gridColor },
+          ticks: { color: tickColor }
+        }
+      }
+    }
+  });
+}
+
+/* ─── INSPECT BEAT ───────────────────────────────────────── */
+function inspectBeat(beatIdx) {
+  if (!ecgData || !ecgData.predictions) return;
+  const total = ecgData.predictions.length;
+  if (beatIdx < 0 || beatIdx >= total) return;
+
+  currentBeat = beatIdx;
+  const pred = ecgData.predictions[beatIdx];
+  const cls  = pred.prediction;
+  const conf = pred.confidence;
+  const probs = pred.probabilities || {};
+
+  // Nav label
+  document.getElementById('beat-nav-label').textContent = `Beat ${beatIdx + 1} / ${total}`;
+
+  // Class badge
+  const badge = document.getElementById('class-badge');
+  badge.textContent = cls;
+  badge.className = 'class-badge badge-' + cls;
+
+  document.getElementById('class-name').textContent = CLASS_NAMES[cls] || cls;
+  document.getElementById('class-confidence').textContent =
+    `Confidence: ${(conf * 100).toFixed(1)}%`;
+
+  // Confidence bar
+  const pct = (conf * 100).toFixed(1);
+  document.getElementById('confidence-pct').textContent = pct + '%';
+  const fill = document.getElementById('confidence-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = conf >= CONFIDENCE_THRESHOLD ? CLASS_COLORS[cls] : '#f97316';
+
+  // Explanation
+  let explanation = CLASS_EXPLANATIONS[cls] || '';
+  if (conf < CONFIDENCE_THRESHOLD) {
+    explanation = '⚠ Low confidence prediction — the signal may be noisy, clipped, or morphologically ambiguous. ' + explanation;
+  }
+  document.getElementById('explanation-text').textContent = explanation;
+
+  // Probability bars
+  const probBars = document.getElementById('prob-bars');
+  probBars.innerHTML = '';
+  if (Object.keys(probs).length > 0) {
+    const classes = ['N', 'S', 'V', 'F', 'Q'];
+    classes.forEach(c => {
+      const p = probs[c] || 0;
+      const row = document.createElement('div');
+      row.className = 'prob-row';
+      row.innerHTML = `
+        <span class="prob-cls" style="color:${CLASS_COLORS[c]}">${c}</span>
+        <div class="prob-bg">
+          <div class="prob-fill" style="width:${(p*100).toFixed(1)}%;background:${CLASS_COLORS[c]}"></div>
+        </div>
+        <span class="prob-val">${(p*100).toFixed(1)}%</span>
+      `;
+      probBars.appendChild(row);
+    });
+  }
+
+  // Render beat waveform
+  renderBeatChart(beatIdx);
+
+  // Highlight table row
+  document.querySelectorAll('#beat-tbody tr').forEach((tr, i) => {
+    tr.classList.toggle('active-row', parseInt(tr.dataset.beatIdx) === beatIdx);
+  });
+
+  // Scroll table row into view
+  const activeRow = document.querySelector(`#beat-tbody tr[data-beat-idx="${beatIdx}"]`);
+  if (activeRow) activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* Beat navigation */
+document.getElementById('btn-prev-beat').addEventListener('click', () => {
+  if (currentBeat > 0) inspectBeat(currentBeat - 1);
+});
+document.getElementById('btn-next-beat').addEventListener('click', () => {
+  if (ecgData && currentBeat < ecgData.predictions.length - 1) inspectBeat(currentBeat + 1);
+});
+
+/* ─── BEAT TABLE ──────────────────────────────────────────── */
+function renderBeatTable(predictions) {
+  const tbody = document.getElementById('beat-tbody');
+  tbody.innerHTML = '';
+
+  predictions.forEach((pred, idx) => {
+    const cls   = pred.prediction;
+    const conf  = pred.confidence;
+    const sample = pred.sample_index || 0;
+    const time  = (sample / SAMPLE_RATE).toFixed(2);
+
+    if (activeFilter !== 'ALL' && cls !== activeFilter) return;
+
+    const confClass = conf >= 0.8 ? 'conf-high' : conf >= CONFIDENCE_THRESHOLD ? 'conf-medium' : 'conf-low';
+    const statusDot = cls === 'N' ? 'normal' : cls === 'Q' ? 'unknown' : cls === 'V' ? 'abnormal' : 'caution';
+    const statusLabel = cls === 'N' ? 'Normal' : cls === 'Q' ? 'Ambiguous' : cls === 'V' ? 'Abnormal' : 'Caution';
+
+    const tr = document.createElement('tr');
+    tr.dataset.beatIdx = idx;
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${sample}</td>
+      <td>${time}</td>
+      <td><span class="class-chip chip-${cls}">${cls}</span></td>
+      <td><span class="conf-pill ${confClass}">${(conf * 100).toFixed(1)}%</span></td>
+      <td><span class="status-dot ${statusDot}"></span> ${statusLabel}</td>
+      <td><button class="inspect-btn">Inspect</button></td>
+    `;
+    tr.querySelector('.inspect-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      inspectBeat(idx);
+    });
+    tr.addEventListener('click', () => inspectBeat(idx));
+    tbody.appendChild(tr);
+  });
+}
+
+/* Filter buttons */
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeFilter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (ecgData) renderBeatTable(ecgData.predictions);
+  });
+});
+
+/* ─── PDF EXPORT ─────────────────────────────────────────── */
+btnReport.addEventListener('click', async () => {
+  if (!ecgData) return;
+
+  showToast('Generating PDF report…');
+  btnReport.disabled = true;
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const pageW = 210;
+    const margin = 18;
+    let y = margin;
+
+    // Header
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, pageW, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('CardioLens — ECG Analysis Report', margin, 17);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - margin, 17, { align: 'right' });
+    y = 36;
+
+    // Disclaimer
+    doc.setFillColor(254, 249, 236);
+    doc.rect(margin, y, pageW - margin * 2, 10, 'F');
+    doc.setTextColor(146, 64, 14);
+    doc.setFontSize(8);
+    doc.text('⚠  DISCLAIMER: This is an AI-based screening tool and NOT a medical diagnosis. Consult a cardiologist.', margin + 3, y + 6.5);
+    y += 16;
+
+    // Summary
+    doc.setTextColor(13, 27, 46);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Summary', margin, y); y += 7;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const sum = ecgData.summary;
+    const counts = sum.class_counts || {};
+    const lines = [
+      `Total Beats: ${sum.total_beats}`,
+      `Average Confidence: ${sum.avg_confidence != null ? (sum.avg_confidence * 100).toFixed(1) + '%' : '—'}`,
+      `Signal Duration: ${sum.signal_length != null ? (sum.signal_length / SAMPLE_RATE).toFixed(1) + 's' : '—'}`,
+      `N (Normal): ${counts.N || 0}    S (Supraventricular): ${counts.S || 0}    V (Ventricular): ${counts.V || 0}    F (Fusion): ${counts.F || 0}    Q (Unknown): ${counts.Q || 0}`,
+    ];
+    lines.forEach(l => { doc.text(l, margin, y); y += 6; });
+    y += 4;
+
+    // Capture ECG chart
+    const ecgCanvas = document.getElementById('ecg-chart');
+    const ecgImg = ecgCanvas.toDataURL('image/png');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('ECG Waveform (first 20s)', margin, y); y += 6;
+    const imgW = pageW - margin * 2;
+    const imgH = imgW * (ecgCanvas.height / ecgCanvas.width);
+    doc.addImage(ecgImg, 'PNG', margin, y, imgW, Math.min(imgH, 55));
+    y += Math.min(imgH, 55) + 8;
+
+    // Beat table
+    if (y > 220) { doc.addPage(); y = margin; }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Beat-level Predictions', margin, y); y += 7;
+
+    // Table header
+    doc.setFillColor(240, 244, 249);
+    doc.rect(margin, y, pageW - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(74, 88, 120);
+    ['#', 'Sample', 'Time(s)', 'Class', 'Confidence', 'Status'].forEach((h, i) => {
+      doc.text(h, margin + [0, 12, 26, 42, 58, 80][i], y + 5);
+    });
+    y += 9;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(13, 27, 46);
+
+    ecgData.predictions.forEach((p, idx) => {
+      if (y > 275) { doc.addPage(); y = margin; }
+      const cls  = p.prediction;
+      const conf = (p.confidence * 100).toFixed(1) + '%';
+      const samp = p.sample_index || 0;
+      const time = (samp / SAMPLE_RATE).toFixed(2);
+      const status = cls === 'N' ? 'Normal' : cls === 'V' ? 'Abnormal' : cls === 'Q' ? 'Unknown' : 'Caution';
+      doc.setFontSize(8);
+      const row = [String(idx + 1), String(samp), time, cls, conf, status];
+      row.forEach((v, i) => doc.text(v, margin + [0, 12, 26, 42, 58, 80][i], y));
+      doc.setDrawColor(221, 228, 239);
+      doc.line(margin, y + 2, pageW - margin, y + 2);
+      y += 6;
+    });
+
+    doc.save('cardiolens_ecg_report.pdf');
+    showToast('Report downloaded!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('PDF export failed: ' + err.message, 'error');
+  } finally {
+    btnReport.disabled = false;
+  }
+});
+
+/* ─── TOAST ──────────────────────────────────────────────── */
+function showToast(message, type = '') {
+  const tc = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  const iconMap = { success: '✓', error: '✕', '': 'ℹ' };
+  t.innerHTML = `<span>${iconMap[type] || 'ℹ'}</span> ${message}`;
+  tc.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; t.style.transition = '0.3s'; setTimeout(() => t.remove(), 350); }, 3500);
+}
+
+/* ─── UTILS ──────────────────────────────────────────────── */
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+/* ─── DEMO / DEV: Mock API response for testing without backend ── */
+// Uncomment the block below to test the UI without a running Flask server.
+/*
+(function mockAPIForDev() {
+  const origFetch = window.fetch;
+  window.fetch = async (url, opts) => {
+    if (url !== '/predict') return origFetch(url, opts);
+    await new Promise(r => setTimeout(r, 1200)); // simulate latency
+
+    const signalLength = 360 * 30; // 30s
+    const signal = Array.from({ length: signalLength }, (_, i) =>
+      Math.sin(2 * Math.PI * 1.2 * i / 360) * 0.8
+      + Math.sin(2 * Math.PI * 5 * i / 360) * 0.05
+      + (Math.random() - 0.5) * 0.04
+    );
+    const peaks = Array.from({ length: 35 }, (_, i) => 120 + i * 300 + Math.floor(Math.random() * 20));
+    const classes = ['N','N','N','V','N','N','S','N','N','N','N','V','N','F','N','N','N','Q','N','N','N','N','V','N','N','N','S','N','N','N','N','N','N','N','N'];
+    const predictions = peaks.map((p, i) => {
+      const cls = classes[i] || 'N';
+      const conf = cls === 'Q' ? 0.45 + Math.random()*0.2 : 0.72 + Math.random()*0.27;
+      const probs = { N:0.0, S:0.0, V:0.0, F:0.0, Q:0.0 };
+      probs[cls] = conf;
+      const rem = 1 - conf;
+      const others = ['N','S','V','F','Q'].filter(c => c !== cls);
+      others.forEach((c, j) => { probs[c] = j === 0 ? rem * 0.6 : rem * 0.1; });
+      return { prediction: cls, confidence: conf, sample_index: p, probabilities: probs };
+    });
+    const beats = peaks.map(p => signal.slice(Math.max(0,p-90), Math.max(0,p-90)+180));
+    const counts = {};
+    predictions.forEach(p => { counts[p.prediction] = (counts[p.prediction]||0)+1; });
+    const avgConf = predictions.reduce((s,p)=>s+p.confidence,0)/predictions.length;
+
+    return new Response(JSON.stringify({
+      signal, peaks, predictions, beats,
+      summary: { total_beats: predictions.length, class_counts: counts, avg_confidence: avgConf, signal_length: signalLength }
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+})();
+*/
+
+  </script>
 </body>
 </html>
