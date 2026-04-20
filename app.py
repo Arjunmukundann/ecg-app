@@ -6,11 +6,7 @@ import json
 from tensorflow import keras
 from scipy.signal import butter, filtfilt, find_peaks
 from collections import Counter
-
-app = app = Flask(__name__, 
-            static_folder='static', 
-            static_url_path='/static',
-            template_folder='templates')
+app = Flask(__name__, template_folder='templates')
 
 MODEL_PATH = "models"
 
